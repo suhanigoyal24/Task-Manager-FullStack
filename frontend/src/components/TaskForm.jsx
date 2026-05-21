@@ -1,108 +1,80 @@
-import { useState, useEffect } from 'react';
-import axiosInstance from '../api/axios';
+import { useState, useEffect } from 'react'
+import axios from '../api/axios'
 
-const TaskForm = ({ existingTask, onSuccess, onClose }) => {
+const TaskForm = ({ task, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    status: 'todo',
-  });
-  const [message, setMessage] = useState({ type: '', text: '' });
-  const [loading, setLoading] = useState(false);
+    status: 'todo'
+  })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState('')
 
-  // Populate form if editing existing task
   useEffect(() => {
-    if (existingTask) {
+    if (task) {
       setFormData({
-        title: existingTask.title || '',
-        description: existingTask.description || '',
-        status: existingTask.status || 'todo',
-      });
+        title: task.title || '',
+        description: task.description || '',
+        status: task.status || 'todo'
+      })
     }
-  }, [existingTask]);
+  }, [task])
 
-  // Handle input changes
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-    if (message.text) setMessage({ type: '', text: '' });
-  };
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+    setError('')
+  }
 
-  // Handle form submission
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage({ type: '', text: '' });
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    setSuccess('')
+
+    // Clean payload before sending: trim whitespace, convert empty description to null
+    const payload = {
+      title: formData.title.trim(),
+      description: formData.description.trim() === '' ? null : formData.description.trim(),
+      status: formData.status
+    }
 
     try {
-      let response;
-      
-      if (existingTask?.id) {
-        // Update existing task (PUT request)
-        response = await axiosInstance.put(
-          `/api/v1/tasks/${existingTask.id}/`,
-          formData
-        );
+      if (task?.id) {
+        const response = await axios.put(`/api/v1/tasks/${task.id}/`, payload)
+        if (response.data.success) {
+          setSuccess('Task updated successfully!')
+          setTimeout(onSave, 500)
+        }
       } else {
-        // Create new task (POST request)
-        response = await axiosInstance.post('/api/v1/tasks/', formData);
-      }
-
-      if (response.data.success) {
-        setMessage({
-          type: 'success',
-          text: existingTask ? 'Task updated!' : 'Task created!',
-        });
-        
-        // Call success callback and close after delay
-        setTimeout(() => {
-          onSuccess();
-        }, 800);
+        const response = await axios.post('/api/v1/tasks/', payload)
+        if (response.data.success) {
+          setSuccess('Task created successfully!')
+          setTimeout(onSave, 500)
+        }
       }
     } catch (err) {
-      // Show validation errors or generic error
-      const errorMsg =
-        err.response?.data?.error ||
-        err.response?.data?.details?.title?.[0] ||
-        err.response?.data?.details?.non_field_errors?.[0] ||
-        'Failed to save task';
-      
-      setMessage({ type: 'error', text: errorMsg });
-      console.error('Task save error:', err);
+      console.error('Task save error:', err)
+      const details = err.response?.data?.details
+      if (details && typeof details === 'object') {
+        const messages = Object.values(details).flat().join(', ')
+        setError(messages || 'Failed to save task')
+      } else {
+        setError(err.response?.data?.error || 'Failed to save task')
+      }
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
-
-  // Close modal when clicking overlay
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
+  }
 
   return (
-    <div className="modal-overlay" onClick={handleOverlayClick}>
-      <div className="modal">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3>{existingTask ? 'Edit Task' : 'New Task'}</h3>
-          <button 
-            onClick={onClose} 
-            style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#666' }}
-          >
-            &times;
-          </button>
-        </div>
-
-        {/* Show success or error message */}
-        {message.text && (
-          <div className={`alert-${message.type === 'success' ? 'success' : 'error'}`} style={{ marginBottom: '1rem' }}>
-            {message.text}
-          </div>
-        )}
-
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>{task?.id ? 'Edit Task' : 'Create New Task'}</h3>
+        
+        {error && <div className="alert alert-error">{error}</div>}
+        {success && <div className="alert alert-success">{success}</div>}
+        
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="title">Title *</label>
@@ -114,10 +86,9 @@ const TaskForm = ({ existingTask, onSuccess, onClose }) => {
               onChange={handleChange}
               required
               placeholder="Enter task title"
-              disabled={loading}
             />
           </div>
-
+          
           <div className="form-group">
             <label htmlFor="description">Description</label>
             <textarea
@@ -125,13 +96,10 @@ const TaskForm = ({ existingTask, onSuccess, onClose }) => {
               name="description"
               value={formData.description}
               onChange={handleChange}
-              rows="4"
               placeholder="Enter task description (optional)"
-              disabled={loading}
-              style={{ resize: 'vertical', minHeight: '80px' }}
             />
           </div>
-
+          
           <div className="form-group">
             <label htmlFor="status">Status</label>
             <select
@@ -139,32 +107,34 @@ const TaskForm = ({ existingTask, onSuccess, onClose }) => {
               name="status"
               value={formData.status}
               onChange={handleChange}
-              disabled={loading}
             >
               <option value="todo">To Do</option>
               <option value="in_progress">In Progress</option>
               <option value="done">Done</option>
             </select>
           </div>
-
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-            <button type="submit" className="btn" disabled={loading} style={{ flex: 1 }}>
-              {loading ? 'Saving...' : (existingTask ? 'Update' : 'Create')}
-            </button>
+          
+          <div className="modal-actions">
             <button 
               type="button" 
-              className="btn btn-danger" 
+              className="btn btn-secondary btn-sm"
               onClick={onClose}
               disabled={loading}
-              style={{ flex: 1 }}
             >
               Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="btn btn-primary btn-sm"
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : (task?.id ? 'Update Task' : 'Create Task')}
             </button>
           </div>
         </form>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default TaskForm;
+export default TaskForm

@@ -1,62 +1,51 @@
-// frontend/src/pages/Login.jsx (updated structure)
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import axiosInstance from '../api/axios';
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import axios from '../api/axios'
 
 const Login = () => {
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const [formData, setFormData] = useState({ email: '', password: '' })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    if (error) setError('');
-  };
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+    setError('')
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+    e.preventDefault()
+    setLoading(true)
+    setError('')
 
     try {
-      const response = await axiosInstance.post('/api/v1/auth/login/', {
-        email: formData.email,
-        password: formData.password,
-      });
-
+      const response = await axios.post('/api/v1/auth/login/', formData)
+      
       if (response.data.success) {
-        localStorage.setItem('access_token', response.data.data.access);
-        localStorage.setItem('refresh_token', response.data.data.refresh);
-        localStorage.setItem('user', JSON.stringify(response.data.data.user));
-        navigate('/dashboard');
+        localStorage.setItem('access_token', response.data.data.access)
+        localStorage.setItem('refresh_token', response.data.data.refresh)
+        localStorage.setItem('user', JSON.stringify(response.data.data.user))
+        navigate('/dashboard')
       }
     } catch (err) {
-      const errorMsg =
-        err.response?.data?.error ||
-        err.response?.data?.details?.non_field_errors?.[0] ||
-        'Invalid email or password. Please try again.';
-      setError(errorMsg);
+      console.error('Login error:', err)
+      setError(err.response?.data?.error || 'Login failed. Please check your credentials.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="container">
-      <div className="card">
-        <h2 style={{ textAlign: 'center', marginBottom: '1.5rem', color: '#1f2937' }}>
-          👋 Welcome Back
-        </h2>
-        <p style={{ textAlign: 'center', color: '#6b7280', marginBottom: '2rem' }}>
-          Sign in to continue to Task Manager
-        </p>
-
-        {error && <div className="alert-error">{error}</div>}
-
+    <div className="auth-page">
+      <div className="auth-card">
+        <h2>Welcome Back</h2>
+        <p className="auth-subtitle">Sign in to your account</p>
+        
+        {error && <div className="alert alert-error">{error}</div>}
+        
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="email">Email Address</label>
+            <label htmlFor="email">Email</label>
             <input
               type="email"
               id="email"
@@ -64,11 +53,10 @@ const Login = () => {
               value={formData.email}
               onChange={handleChange}
               required
-              placeholder="you@example.com"
-              disabled={loading}
+              placeholder="john@example.com"
             />
           </div>
-
+          
           <div className="form-group">
             <label htmlFor="password">Password</label>
             <input
@@ -79,31 +67,20 @@ const Login = () => {
               onChange={handleChange}
               required
               placeholder="••••••••"
-              disabled={loading}
             />
           </div>
-
-          <button type="submit" className="btn" disabled={loading} style={{ marginTop: '1rem' }}>
-            {loading ? (
-              <>
-                <span className="spinner"></span>
-                Signing in...
-              </>
-            ) : (
-              'Sign In'
-            )}
+          
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
-
-        <p style={{ textAlign: 'center', marginTop: '1.5rem', color: '#6b7280' }}>
-          Don't have an account?{' '}
-          <Link to="/register" style={{ color: '#667eea', fontWeight: 600 }}>
-            Create one
-          </Link>
-        </p>
+        
+        <div className="auth-footer">
+          Don't have an account? <Link to="/register">Create one here</Link>
+        </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Login;
+export default Login

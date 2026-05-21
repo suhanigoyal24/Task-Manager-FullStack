@@ -18,10 +18,13 @@ class TaskSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'description': {'required': False, 'allow_blank': True, 'allow_null': True}
+        }
     
     def validate_title(self, value):
         """Ensure title is not empty after stripping."""
-        if not value.strip():
+        if not value or not value.strip():
             raise serializers.ValidationError("Title cannot be empty.")
         return value.strip()
     
@@ -37,7 +40,16 @@ class TaskSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             validated_data['created_by'] = request.user
+        # Handle empty description gracefully
+        if validated_data.get('description') == '':
+            validated_data['description'] = None
         return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        """Handle empty description on update."""
+        if 'description' in validated_data and validated_data['description'] == '':
+            validated_data['description'] = None
+        return super().update(instance, validated_data)
 
 
 class TaskListSerializer(serializers.ModelSerializer):
@@ -47,5 +59,6 @@ class TaskListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Task
-        fields = ['id', 'title', 'status', 'owner_email', 'owner_name', 'created_at']
+        # Include description so frontend can truncate/show it
+        fields = ['id', 'title', 'description', 'status', 'owner_email', 'owner_name', 'created_at']
         read_only_fields = fields

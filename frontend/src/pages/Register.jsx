@@ -1,113 +1,106 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import axiosInstance from '../api/axios';
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import axios from '../api/axios'
 
 const Register = () => {
   const [formData, setFormData] = useState({
-    full_name: '',
     email: '',
+    first_name: '',
+    last_name: '',
     password: '',
-  });
-  const [message, setMessage] = useState({ type: '', text: '' });
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+    password_confirm: ''
+  })
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
 
-  // Handle input changes
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-    // Clear message when user types
-    if (message.text) setMessage({ type: '', text: '' });
-  };
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+    setError('')
+    setSuccess('')
+  }
 
-  // Handle form submission
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage({ type: '', text: '' });
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    setSuccess('')
+
+    if (formData.password !== formData.password_confirm) {
+      setError('Passwords do not match')
+      setLoading(false)
+      return
+    }
 
     try {
-      // Split full_name into first_name and last_name
-      const nameParts = formData.full_name.trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || 'User';
-
-      // API call to register
-      const response = await axiosInstance.post('/api/v1/auth/register/', {
+      const response = await axios.post('/api/v1/auth/register/', {
         email: formData.email,
-        first_name: firstName,
-        last_name: lastName,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
         password: formData.password,
-        password_confirm: formData.password,
-      });
-
-      // SUCCESS: Show message and redirect to login (DO NOT auto-login)
-      if (response.data.success) {
-        setMessage({
-          type: 'success',
-          text: 'Registration successful! Please login to continue.',
-        });
-
-        // Clear form
-        setFormData({ full_name: '', email: '', password: '' });
-
-        // Redirect to login page after 2 seconds
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
-      }
-    } catch (error) {
-      // ERROR: Show error message
-      const errorMsg =
-        error.response?.data?.error ||
-        error.response?.data?.details?.email?.[0] ||
-        error.response?.data?.details?.password?.[0] ||
-        error.response?.data?.details?.non_field_errors?.[0] ||
-        'Registration failed. Please try again.';
+        password_confirm: formData.password_confirm
+      })
       
-      setMessage({ type: 'error', text: errorMsg });
-      console.error('Register error:', error);
+      if (response.data.success) {
+        setSuccess('Registration successful! Redirecting...')
+        localStorage.setItem('access_token', response.data.data.access)
+        localStorage.setItem('refresh_token', response.data.data.refresh)
+        localStorage.setItem('user', JSON.stringify(response.data.data.user))
+        setTimeout(() => navigate('/dashboard'), 1500)
+      }
+    } catch (err) {
+      console.error('Registration error:', err)
+      const details = err.response?.data?.details
+      if (details && typeof details === 'object') {
+        const messages = Object.values(details).flat().join(', ')
+        setError(messages || 'Registration failed')
+      } else {
+        setError(err.response?.data?.error || 'Registration failed. Please try again.')
+      }
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="container">
-      <div className="card">
-        <h2 style={{ textAlign: 'center', marginBottom: '1rem', color: '#1f2937' }}>
-          Create Account
-        </h2>
-        <p style={{ textAlign: 'center', color: '#6b7280', marginBottom: '2rem' }}>
-          Join Task Manager to get started
-        </p>
-
-        {/* Show success or error message */}
-        {message.text && (
-          <div className={`alert-${message.type === 'success' ? 'success' : 'error'}`}>
-            {message.text}
-          </div>
-        )}
-
+    <div className="auth-page">
+      <div className="auth-card">
+        <h2>Create Account</h2>
+        <p className="auth-subtitle">Join Task Manager today</p>
+        
+        {error && <div className="alert alert-error">{error}</div>}
+        {success && <div className="alert alert-success">{success}</div>}
+        
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="full_name">Full Name</label>
+            <label htmlFor="first_name">First Name</label>
             <input
               type="text"
-              id="full_name"
-              name="full_name"
-              value={formData.full_name}
+              id="first_name"
+              name="first_name"
+              value={formData.first_name}
               onChange={handleChange}
               required
-              placeholder="John Doe"
-              disabled={loading}
+              placeholder="John"
             />
           </div>
-
+          
           <div className="form-group">
-            <label htmlFor="email">Email Address</label>
+            <label htmlFor="last_name">Last Name</label>
+            <input
+              type="text"
+              id="last_name"
+              name="last_name"
+              value={formData.last_name}
+              onChange={handleChange}
+              required
+              placeholder="Doe"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="email">Email</label>
             <input
               type="email"
               id="email"
@@ -115,11 +108,10 @@ const Register = () => {
               value={formData.email}
               onChange={handleChange}
               required
-              placeholder="you@example.com"
-              disabled={loading}
+              placeholder="john@example.com"
             />
           </div>
-
+          
           <div className="form-group">
             <label htmlFor="password">Password</label>
             <input
@@ -131,34 +123,33 @@ const Register = () => {
               required
               minLength={8}
               placeholder="Minimum 8 characters"
-              disabled={loading}
             />
-            <small style={{ color: '#6b7280', fontSize: '0.85rem' }}>
-              Use at least 8 characters with a mix of letters and numbers
-            </small>
           </div>
-
-          <button type="submit" className="btn" disabled={loading} style={{ marginTop: '1rem' }}>
-            {loading ? (
-              <>
-                <span className="spinner"></span>
-                Creating account...
-              </>
-            ) : (
-              'Create Account'
-            )}
+          
+          <div className="form-group">
+            <label htmlFor="password_confirm">Confirm Password</label>
+            <input
+              type="password"
+              id="password_confirm"
+              name="password_confirm"
+              value={formData.password_confirm}
+              onChange={handleChange}
+              required
+              placeholder="Re-enter password"
+            />
+          </div>
+          
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? 'Creating Account...' : 'Create Account'}
           </button>
         </form>
-
-        <p style={{ textAlign: 'center', marginTop: '1.5rem', color: '#6b7280' }}>
-          Already have an account?{' '}
-          <Link to="/login" style={{ color: '#667eea', fontWeight: 600 }}>
-            Login here
-          </Link>
-        </p>
+        
+        <div className="auth-footer">
+          Already have an account? <Link to="/login">Sign in here</Link>
+        </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Register;
+export default Register

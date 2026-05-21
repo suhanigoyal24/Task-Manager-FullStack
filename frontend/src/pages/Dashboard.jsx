@@ -1,194 +1,224 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axiosInstance from '../api/axios';
-import Navbar from '../components/Navbar';
-import TaskForm from '../components/TaskForm';
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import Navbar from '../components/Navbar'
+import TaskForm from '../components/TaskForm'
+import TaskDetailModal from '../components/TaskDetailModal'
+import axios from '../api/axios'
 
 const Dashboard = () => {
-  const [user, setUser] = useState(null);
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editingTask, setEditingTask] = useState(null);
-  const navigate = useNavigate();
+  const [user, setUser] = useState(null)
+  const [tasks, setTasks] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editingTask, setEditingTask] = useState(null)
+  const [viewingTask, setViewingTask] = useState(null)
+  const navigate = useNavigate()
 
-  // Check authentication on mount
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      navigate('/login');
-      return;
+    const loadUserData = async () => {
+      try {
+        const storedUser = localStorage.getItem('user')
+        if (storedUser) {
+          setUser(JSON.parse(storedUser))
+        } else {
+          const response = await axios.get('/api/v1/auth/me/')
+          if (response.data.success) {
+            setUser(response.data.data)
+            localStorage.setItem('user', JSON.stringify(response.data.data))
+          }
+        }
+        await fetchTasks()
+      } catch (err) {
+        console.error('Error loading dashboard:', err)
+        setError('Failed to load dashboard data')
+        if (err.response?.status === 401) {
+          navigate('/login')
+        }
+      } finally {
+        setLoading(false)
+      }
     }
+    loadUserData()
+  }, [navigate])
 
-    // Load user profile and tasks
-    fetchData();
-  }, [navigate]);
-
-  // Fetch user profile and tasks from API
-  const fetchData = async () => {
+  const fetchTasks = async () => {
     try {
-      // Get user profile
-      const profileRes = await axiosInstance.get('/api/v1/auth/me/');
-      if (profileRes.data.success) {
-        setUser(profileRes.data.data);
-        localStorage.setItem('user', JSON.stringify(profileRes.data.data));
-      }
-
-      // Get tasks list
-      const tasksRes = await axiosInstance.get('/api/v1/tasks/');
-      if (tasksRes.data.success) {
-        setTasks(tasksRes.data.data);
-      }
-    } catch (err) {
-      console.error('Dashboard fetch error:', err);
-      setError('Failed to load data. Please try again.');
-      if (err.response?.status === 401) {
-        navigate('/login');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle logout
-  const handleLogout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-    navigate('/login');
-  };
-
-  // Handle create new task
-  const handleCreateTask = () => {
-    setEditingTask(null);
-    setShowForm(true);
-  };
-
-  // Handle edit existing task
-  const handleEditTask = (task) => {
-    setEditingTask(task);
-    setShowForm(true);
-  };
-
-  // Handle delete task
-  const handleDeleteTask = async (taskId) => {
-    if (!window.confirm('Are you sure you want to delete this task?')) {
-      return;
-    }
-
-    try {
-      const response = await axiosInstance.delete(`/api/v1/tasks/${taskId}/`);
+      const response = await axios.get('/api/v1/tasks/')
       if (response.data.success) {
-        // Remove deleted task from state
-        setTasks(tasks.filter((task) => task.id !== taskId));
+        setTasks(response.data.data)
       }
     } catch (err) {
-      console.error('Delete error:', err);
-      alert(err.response?.data?.error || 'Failed to delete task');
+      console.error('Error fetching tasks:', err)
+      setError('Failed to load tasks')
     }
-  };
+  }
 
-  // Callback when task is created/updated successfully
-  const handleTaskSuccess = () => {
-    setShowForm(false);
-    setEditingTask(null);
-    fetchData(); // Refresh tasks list
-  };
+  const handleLogout = () => {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('user')
+    navigate('/login')
+  }
 
-  // Show loading state
+  const handleCreateTask = () => {
+    setEditingTask(null)
+    setShowModal(true)
+  }
+
+  const handleEditTask = (task) => {
+    setEditingTask(task)
+    setShowModal(true)
+  }
+
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) return
+    try {
+      const response = await axios.delete(`/api/v1/tasks/${taskId}/`)
+      if (response.data.success) {
+        setTasks(tasks.filter(t => t.id !== taskId))
+      }
+    } catch (err) {
+      console.error('Error deleting task:', err)
+      alert(err.response?.data?.error || 'Failed to delete task')
+    }
+  }
+
+  const handleTaskSaved = () => {
+    setShowModal(false)
+    setEditingTask(null)
+    fetchTasks()
+  }
+
+  const handleViewTask = (task) => {
+    setViewingTask(task)
+  }
+
+  const getFullName = () => {
+    if (!user) return 'User'
+    return `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email
+  }
+
+  const getStatusClass = (status) => {
+    return `status-badge status-${status}`
+  }
+
   if (loading) {
-    return <div className="container" style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div>;
+    return <div className="loading">Loading dashboard</div>
+  }
+
+  if (error && !user) {
+    return <div className="auth-page"><div className="alert alert-error">{error}</div></div>
   }
 
   return (
     <div>
-      {/* Navbar with user info and logout */}
       <Navbar user={user} onLogout={handleLogout} />
-
-      <div className="container">
-        {/* Show error if any */}
-        {error && <div className="alert-error">{error}</div>}
-
-        {/* Header with create button */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2>My Tasks</h2>
-          <button className="btn" onClick={handleCreateTask}>+ New Task</button>
+      
+      <div className="dashboard">
+        {error && <div className="alert alert-error">{error}</div>}
+        
+        {/* Welcome Card */}
+        <div className="welcome-card">
+          <div>
+            <h2>Welcome back, {getFullName()}!</h2>
+            <p>Manage your tasks efficiently</p>
+          </div>
+          <span className="role-badge">{user?.role_display || user?.role}</span>
         </div>
-
-        {/* Tasks table */}
-        {tasks.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#666' }}>No tasks found. Create your first task!</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((task) => (
-                <tr key={task.id}>
-                  <td>
-                    <strong>{task.title}</strong>
-                    {task.description && (
-                      <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '4px' }}>
-                        {task.description.length > 50 
-                          ? task.description.substring(0, 50) + '...' 
-                          : task.description}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <span style={{
-                      padding: '4px 12px',
-                      borderRadius: '20px',
-                      fontSize: '0.85rem',
-                      backgroundColor: task.status === 'done' ? '#28a745' : 
-                                      task.status === 'in_progress' ? '#ffc107' : '#6c757d',
-                      color: task.status === 'in_progress' ? '#000' : '#fff',
-                      textTransform: 'capitalize'
-                    }}>
-                      {task.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td>{new Date(task.created_at).toLocaleDateString()}</td>
-                  <td>
-                    <button 
-                      className="btn" 
-                      style={{ padding: '6px 12px', marginRight: '8px' }}
-                      onClick={() => handleEditTask(task)}
-                    >
-                      Edit
-                    </button>
-                    <button 
-                      className="btn btn-danger" 
-                      style={{ padding: '6px 12px' }}
-                      onClick={() => handleDeleteTask(task.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        
+        {/* Tasks Section */}
+        <div className="tasks-section">
+          <div className="tasks-header">
+            <h3>My Tasks</h3>
+            <button className="btn-add" onClick={handleCreateTask}>
+              + Add New Task
+            </button>
+          </div>
+          
+          {tasks.length === 0 ? (
+            <div className="no-tasks">
+              <p>No tasks yet. Create your first task!</p>
+            </div>
+          ) : (
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Task</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tasks.map((task) => (
+                    <tr key={task.id}>
+                      <td>
+                        <strong 
+                          style={{ cursor: 'pointer', color: '#1a73e8' }} 
+                          onClick={() => handleViewTask(task)}
+                        >
+                          {task.title}
+                        </strong>
+                      </td>
+                      <td>
+                        {/* Only show View button - no description text */}
+                        <button 
+                          className="btn btn-sm btn-edit"
+                          onClick={() => handleViewTask(task)}
+                        >
+                          View
+                        </button>
+                      </td>
+                      <td>
+                        <span className={getStatusClass(task.status)}>
+                          {task.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td>{new Date(task.created_at).toLocaleDateString()}</td>
+                      <td className="actions-cell">
+                        <button 
+                          className="btn btn-sm btn-edit"
+                          onClick={() => handleEditTask(task)}
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          className="btn btn-sm btn-danger"
+                          onClick={() => handleDeleteTask(task.id)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Task Form Modal */}
-      {showForm && (
+      
+      {/* Task Create/Edit Modal */}
+      {showModal && (
         <TaskForm 
-          existingTask={editingTask}
-          onSuccess={handleTaskSuccess}
-          onClose={() => { setShowForm(false); setEditingTask(null); }}
+          task={editingTask}
+          onClose={() => { setShowModal(false); setEditingTask(null) }}
+          onSave={handleTaskSaved}
+        />
+      )}
+      
+      {/* Task Detail View Modal */}
+      {viewingTask && (
+        <TaskDetailModal 
+          task={viewingTask} 
+          onClose={() => setViewingTask(null)} 
         />
       )}
     </div>
-  );
-};
+  )
+}
 
-export default Dashboard;
+export default Dashboard
